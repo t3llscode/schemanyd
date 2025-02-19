@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "schemanyd"
+version = "0.1.0"
+description = "Explosive, dynamic database population and access based on schema introspection."
+readme = "readme.md"
+authors = [
+    {name = "Tell Hensel", email = "git@t3l.ls"}
+]
+# license = {file = "LICENSE.txt"}  # Uncomment if LICENSE.txt is added
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["database", "schema", "introspection", "seeding", "sqlalchemy", "sequelize", "dynamic", "automation"]
+requires-python = ">=3.8"
+dependencies = []
+
+
+[project.urls]
+Homepage = "https://github.com/t3llscode/schemanyd"
+"Bug Reports" = "https://github.com/t3llscode/schemanyd/issues"
+"Source" = "https://github.com/t3llscode/schemanyd"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["schemanyd*"]

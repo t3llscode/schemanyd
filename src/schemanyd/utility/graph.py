@@ -1,10 +1,12 @@
 # This class is creating a generic representation of the schema,
 # allowing for better encapsulation and manipulation of the graph structure.
 
+from email.policy import default
 from typing import Dict, List, Tuple, Type
 
 
 def register_converters():
+    """ Once the classes are defined, this function registers the available schema converters. """
     Graph.register_converter("sqlalchemy", SQLAlchemySchemaConverter)
 
 # - - - - - GRAPH - - - - -
@@ -16,17 +18,17 @@ class Graph:
 
     def __init__(self, schema, schema_type: str = "sqlalchemy"):
         """
-        Currently supports SQLAlchemy schemas.
-        
+        Create a traceable Graph representation of a database schema. Currently supports only SQLAlchemy schemas.
+
         Parameters:
-            schema: The MetaData class schema to convert into a Schemanyd Graph
-            schema_type: Currently only support "sqlalchemy" and therefore defaults to it
+            schema: The MetaData object to convert into a Schemanyd Graph.
+            schema_type: The schema type to use. Currently only "sqlalchemy" is supported and is the default.
         """
 
         self.schema = schema
         self.schema_type = schema_type
 
-        converter = self._create_converter(schema_type)
+        converter = self._load_converter(schema_type)
         self.nodes, self.edges = converter.convert(schema)
 
 
@@ -36,15 +38,18 @@ class Graph:
 
     @classmethod
     def register_converter(cls, schema_type: str, converter_cls: Type["SchemaConverter"]) -> None:
+        """ Register a converter of type SchemaConverter for a specific schema type. """
         cls._SCHEMA_CONVERTERS[schema_type] = converter_cls
 
 
     @classmethod
     def get_supported_schema_types(cls) -> List[str]:
+        """ Returns a sorted list of supported schema types. """
         return sorted(cls._SCHEMA_CONVERTERS.keys())
 
 
-    def _create_converter(self, schema_type: str) -> "SchemaConverter":
+    def _load_converter(self, schema_type: str) -> "SchemaConverter":
+        """ Try to load (return) the SchemaConverter object for the given schema type. """
         try:
             converter_cls = self._SCHEMA_CONVERTERS[schema_type]
         except KeyError as exc:
@@ -59,9 +64,15 @@ class Graph:
 class Table:  # Node
 
     def __init__(self, name: str):
+        """
+        Table objects contain information about the table's columns, constraints and relationships.
+        
+        The tables of the database are represented as nodes in the graph.
+        """
         self.name = name
         self.columns: Dict[str, "Column"] = {}
         self.relationships: List["Relationship"] = []
+        self.constraints: List["Constraint"] = []
 
 
     def add_column(self, column: "Column") -> None:
@@ -79,21 +90,47 @@ class Table:  # Node
 
 class Column:
 
-    def __init__(self, table: Table, name: str, data_type: str, is_primary_key: bool = False, is_foreign_key: bool = False):
+    def __init__(self, table: Table, name: str, data_type: str, nullable: bool = True, default: str = None, is_primary_key: bool = False, is_foreign_key: bool = False):
+        """
+        Column objects contain information about the column and the constraints associated with it.
+
+        Within the Graph they are not directly represented as nodes or edges, but their properties contribute to the overall structure and are linked to tables and relationships.
+        """
         self.table = table
         self.name = name
         self.data_type = data_type
+        self.nullable = nullable
+        self.default = default  # not necessary for schemanyd
         self.is_primary_key = is_primary_key
         self.is_foreign_key = is_foreign_key
+        self.constraints: List["Constraint"] = []  # not sure if necessary for schemanyd
+
+
+    def add_constraint(self, constraint: "Constraint") -> None:
+        if constraint not in self.constraints:
+            self.constraints.append(constraint)
 
 
     def __repr__(self):
-        return f"{self.name} ({self.data_type})"
+        modifiers = []
+        if self.is_primary_key:
+            modifiers.append("PK")
+        if self.is_foreign_key:
+            modifiers.append("FK")
+        if not self.nullable:
+            modifiers.append("NOT NULL")
+        modifier_str = f" [{' '.join(modifiers)}]" if modifiers else ""
+        return f"{self.name} ({self.data_type}){modifier_str}"
 
 
 class Relationship:  # Edge
 
     def __init__(self, source: Column, target: Column):
+        """
+        Relationship objects represent the connections between columns in different tables.
+
+        Within the Graph they are represented as edges connecting the nodes / tables of source and target.
+        """
         self.source = source
         self.target = target
         self.relationship_type = self._determine_relationship_type()

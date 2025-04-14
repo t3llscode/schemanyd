@@ -55,17 +55,45 @@ def insert(csv_file: bytes, column_mapping: Dict[str, str]) -> None:
     """
     pass
 
-    # 1. Reading CSV from bytes (no disk I/O)
+    # 1. | Reading CSV from bytes (no disk I/O)
 
-    # 2. Creating a temporary table in the database
+    # 2. | 1st Check Wave
 
-    # 3. Bulk loading CSV data into temp table
+        # 2.1. | Check if every mentioned column in the csv even exists (maybe check for similiar names / typos)
 
-    # 4. Mapping and inserting from temp table to final table
+        # 2.2. | Check if every mentioned database field even exists in the schema
+        
+            # 2.2.1. | Check if the data types match (maybe also check for similiar names / typos)
 
-        # 4.1. Schemanyd Logic Stuff
+        # 2.3. | Check if fields which are mentioned without any long syntax ('.../...') have multiple foreign keys pointing to them
 
-    # 5. Cleaning up temporary table
+            # 2.3.1. | Check which foreign key is closer / choose it and give a warning / return in how it was joined, which one was taken, throw an error if they are equally close
+
+        # 2.4. | For every table, check if all fields which are notnull are given
+
+            # 2.4.1. | If not, check if the existing are unique enough to get the IDs of existing entries
+
+            # 2.4.2. | If it would be possible, check if all entries already exist, or if I would need to add new (then this can't be done, but a dataset with the found values can be returned)
+
+        # 2.5. | Check with a Graph Path-Tracing, if the join is possible, provide detailed feedback which exact point might cause issues
+
+    # 3. | Renaming and dropping columns based on mapping
+
+    # 4. | Creating a temporary table in the database
+
+    # 5. | Bulk loading CSV data into temp table
+
+    # 6. | Schemanyd Logic
+
+        # 6.1. | Check which tables don't require any foreign keys and can immediately be inserted
+
+        # 6.2. | Insert those and join the keys to the temporary table, continue with 6.1 again (maybe add an option for inserting as long as it can, even in cases where a join is not fully possible)
+
+    # n-2. | Check if the insert was successful (not sure which logic to use for this yet)
+
+    # n-1. | Cleaning up temporary table
+
+    # n. | Return how the procedure went
 
 
 # - - - - - Wrapper Functions - Convert various data types to CSV bytes - - - - -

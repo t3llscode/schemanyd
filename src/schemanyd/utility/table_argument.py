@@ -7,8 +7,7 @@ from typing import List, TYPE_CHECKING
 if TYPE_CHECKING:
     from .graph import Table, Column
 
-
-# - - - TABLE ARGUMENTS (CONSTRAINTS & INDEXES) - - -
+# - - - LEVEL 1 - TableArgument - - -
 
 class TableArgument:
 
@@ -31,6 +30,7 @@ class TableArgument:
         self.table = table
         self.name = name
 
+# - - - LEVEL 2 - Constraint & Index - - -
 
 class Constraint(TableArgument):
 
@@ -39,6 +39,28 @@ class Constraint(TableArgument):
         super().__init__(table, name)
         self.constraint_type = constraint_type
 
+
+class Index(TableArgument):
+
+    def __init__(self, table: "Table", columns: List["Column"], name: str):
+        """
+        Indexes are not used for Schemanyds logic, they are included for completeness.
+
+        They are similar yet conceptually separate from CONSTRAINTs and use the SQL `INDEX` keyword.
+
+        Parameters
+        ----------
+        table: Table
+            The table the index belongs to.
+        columns: List[Column]
+            The list of columns included in the index.
+        name: str
+            The name of the index.
+        """
+        super().__init__(table, name)
+        self.columns = columns
+
+# - - - LEVEL 3 - TableConstraint & ColumnConstraint - - -
 
 class TableConstraint(Constraint):
 
@@ -61,6 +83,37 @@ class TableConstraint(Constraint):
         super().__init__(table, constraint_type, name)
         self.columns = columns
 
+
+class ColumnConstraint(Constraint):
+
+    def __init__(self, table: "Table", constraint_type: str, column: "Column"):
+        """
+        These constraints are set using the SQL keyword `COLUMN`:
+        `NOT NULL` and `DEFAULT`
+
+        Column constraints are directly applied to columns and do not have separate names.
+        They are identified by their constraint_type and the column they apply to.
+
+        There is no attribute to store the `DEFAULT` value. Currently the priority is on
+        representing the structure. This would anyway be handled by the database.
+
+        Similar for `NOT NULL`, if the constraint exists, it means the column cannot be null.
+
+        Parameters
+        ----------
+        table: Table
+            The table the constraint belongs to.
+        constraint_type: str
+            The type of the constraint (either NOT NULL or DEFAULT).
+        column: Column
+            The column the constraint is applied to, can't be a list.
+        """
+        # Column constraints don't have names, so we generate one from column name and type
+        name = f"{constraint_type.lower().replace(' ', '_')}_{column.name}"
+        super().__init__(table, constraint_type, name)
+        self.column = column
+
+# - - - LEVEL 4.1 - TableConstraints - - -
 
 class UniqueConstraint(TableConstraint):
 
@@ -142,36 +195,7 @@ class CheckConstraint(TableConstraint):
         super().__init__(table, "CHECK", columns, name)
         self.condition = condition
 
-
-class ColumnConstraint(Constraint):
-
-    def __init__(self, table: "Table", constraint_type: str, column: "Column"):
-        """
-        These constraints are set using the SQL keyword `COLUMN`:
-        `NOT NULL` and `DEFAULT`
-
-        Column constraints are directly applied to columns and do not have separate names.
-        They are identified by their constraint_type and the column they apply to.
-
-        There is no attribute to store the `DEFAULT` value. Currently the priority is on
-        representing the structure. This would anyway be handled by the database.
-
-        Similar for `NOT NULL`, if the constraint exists, it means the column cannot be null.
-
-        Parameters
-        ----------
-        table: Table
-            The table the constraint belongs to.
-        constraint_type: str
-            The type of the constraint (either NOT NULL or DEFAULT).
-        column: Column
-            The column the constraint is applied to, can't be a list.
-        """
-        # Column constraints don't have names, so we generate one from column name and type
-        name = f"{constraint_type.lower().replace(' ', '_')}_{column.name}"
-        super().__init__(table, constraint_type, name)
-        self.column = column
-
+# - - - LEVEL 4.2 - ColumnConstraints - - -
 
 class NotNullConstraint(ColumnConstraint):
 
@@ -210,24 +234,3 @@ class DefaultConstraint(ColumnConstraint):
         """
         super().__init__(table, "DEFAULT", column)
         self.default_value = default_value
-
-
-class Index(TableArgument):
-
-    def __init__(self, table: "Table", columns: List["Column"], name: str):
-        """
-        Indexes are not used for Schemanyds logic, they are included for completeness.
-
-        They are similar yet conceptually separate from CONSTRAINTs and use the SQL `INDEX` keyword.
-
-        Parameters
-        ----------
-        table: Table
-            The table the index belongs to.
-        columns: List[Column]
-            The list of columns included in the index.
-        name: str
-            The name of the index.
-        """
-        super().__init__(table, name)
-        self.columns = columns

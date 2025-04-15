@@ -4,12 +4,15 @@
 from email.policy import default
 from typing import Dict, List, Tuple, Type
 
+# My Imports
+from .table_argument import TableArgument
+
 
 def register_converters():
     """ Once the classes are defined, this function registers the available schema converters. """
     Graph.register_converter("sqlalchemy", SQLAlchemySchemaConverter)
 
-# - - - - - GRAPH - - - - -
+#  - - - - - - - - - - GRAPH - - - - - - - - - -
 
 class Graph:
 
@@ -59,7 +62,8 @@ class Graph:
             ) from exc
         return converter_cls()
 
-# - - - - GRAPH ELEMENTS - - -
+#  - - - - - GRAPH ELEMENTS - - - - -
+# - - - Table - - -
 
 class Table:  # Node
 
@@ -72,7 +76,7 @@ class Table:  # Node
         self.name = name
         self.columns: Dict[str, "Column"] = {}
         self.relationships: List["Relationship"] = []
-        self.constraints: List["Constraint"] = []
+        self.arguemnts: List[TableArgument] = []
 
 
     def add_column(self, column: "Column") -> None:
@@ -87,6 +91,7 @@ class Table:  # Node
     def __repr__(self):
         return f"Table({self.name}, {list(self.columns.values())}, {self.relationships})"
 
+# - - - Column - - -
 
 class Column:
 
@@ -103,10 +108,10 @@ class Column:
         self.default = default  # not necessary for schemanyd
         self.is_primary_key = is_primary_key
         self.is_foreign_key = is_foreign_key
-        self.constraints: List["Constraint"] = []  # not sure if necessary for schemanyd
+        self.arguemnts: List[TableArgument] = []  # not sure if necessary for schemanyd
 
 
-    def add_constraint(self, constraint: "Constraint") -> None:
+    def add_arguemnts(self, constraint: TableArgument) -> None:
         if constraint not in self.constraints:
             self.constraints.append(constraint)
 
@@ -122,6 +127,7 @@ class Column:
         modifier_str = f" [{' '.join(modifiers)}]" if modifiers else ""
         return f"{self.name} ({self.data_type}){modifier_str}"
 
+# - - - Relationship - - -
 
 class Relationship:  # Edge
 
@@ -149,111 +155,10 @@ class Relationship:  # Edge
             return "ManyToMany"
         return "Unknown"
 
-# - - - CONSTRAINTS - - -
-
-class TableArgs():
-
-    def __init__(self, table: Table, name: str):
-        """
-        - Base container for table-level metadata used by the Schemanyd Graph.
-        - Holds a reference to the Schemanyd Table object and a human-friendly name.
-        - Represents any table-associated definition that is tied to the table itself (as opposed to graph-level relationships).
-
-        Subclasses share a common SQL keyword prefix that indicates their type.
-
-        | Table Constraints -   | Column Constraints -   | Index   |
-        |-----------------------|------------------------|---------|
-        | `CONSTRAINT`          | `COLUMN`               | `INDEX` |
-        | UNIQUE                | NOT NULL               | INDEX   |
-        | PRIMARY KEY           | DEFAULT                |         |
-        | FOREIGN KEY           |                        |         |
-        | CHECK                 |                        |         |        
-        """
-        self.table = table
-        self.name = name
-
-
-class Constraint(TableArgs):
-
-    def __init__(self, table: Table, constraint_type: str, name: str):
-        """ Parent class for all constraints. """
-        super().__init__(table, name)
-        self.constraint_type = constraint_type
-
-
-class TableConstraint(Constraint):
-
-    def __init__(self, table: Table, constraint_type: str, columns: List[Column], name: str):
-        """
-        These constraints are set using the SQL keyword `CONSTRAINT`:
-        `UNIQUE`, `PRIMARY KEY`, `FOREIGN KEY`, `CHECK`
-
-        Parameters
-        ----------
-        table: Table
-            The table the constraint belongs to.
-        constraint_type: str
-            The type of the constraint (`UNIQUE`, `PRIMARY KEY`, `FOREIGN KEY` or `CHECK`).
-        columns: List[Column]
-            The columns the constraint applies to.
-        name: str
-            The name of the constraint.
-        """
-        super().__init__(table, constraint_type, name)
-        self.columns = columns
-
-
-class ColumnConstraint(Constraint):
-
-    def __init__(self, table: Table, constraint_type: str, column: Column, name: str):
-        """
-        These constraints are set using the SQL keyword `COLUMN`:
-        `NOT NULL` and `DEFAULT`
-
-        There is no attribute to store the `DEFAULT` value. Currently the priority is on
-        representing the structure. This would anyway be handled by the database.
-
-        Similar for `NOT NULL`, if the constraint exists, it means the column cannot be null.
-
-        Parameters
-        ----------
-        table: Table
-            The table the constraint belongs to.
-        constraint_type: str
-            The type of the constraint (either NOT NULL or DEFAULT).
-        column: Column
-            The column the constraint is applied to, can't be a list.
-        name: str
-            The name of the constraint.
-        """
-        super().__init__(table, constraint_type, name)
-        self.column = column
-
-
-class Index(TableArgs):
-
-    def __init__(self, table: Table, columns: List[Column], name: str):
-        """
-        Indexes are not used for Schemanyds logic, they are included for completeness.
-
-        They are similar yet conceptually separate from CONSTRAINTs and use the SQL `INDEX` keyword.
-
-        Parameters
-        ----------
-        table: Table
-            The table the index belongs to.
-        columns: List[Column]
-            The list of columns included in the index.
-        name: str
-            The name of the index.
-        """
-        super().__init__(table, name)
-        self.columns = columns
-
-
-# - - - - - SCHEMA CONVERSION - - - - -
+# - - - - - - - - - - SCHEMA CONVERSION - - - - - - - - - - 
 
 class SchemaConverter:
+    
     def convert(self, schema) -> Tuple[List[Table], List[Relationship]]:
         raise NotImplementedError
 

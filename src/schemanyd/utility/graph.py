@@ -13,7 +13,7 @@ from sqlalchemy import CheckConstraint as SQLA_CheckConstraint
 
 # Schemanyd Imports
 from .table_argument import TableArgument, Index, TableConstraint, ColumnConstraint, UniqueConstraint, PrimaryKeyConstraint, ForeignKeyConstraint, CheckConstraint, NotNullConstraint, DefaultConstraint
-
+from .repr.graph_visualization import draw_visualizations
 
 def register_converters():
     """ Once the classes are defined, this function registers the available schema converters. """
@@ -44,6 +44,11 @@ class Graph:
 
     def __repr__(self):
         return f"Graph(nodes={self.nodes})"
+    
+
+    def draw_visualizations(self, types: List[str] = ["all"]) -> str:
+        """ Check repr/graph_visualization.py for available styles. """
+        return draw_visualizations(self, types)
 
 
     @classmethod

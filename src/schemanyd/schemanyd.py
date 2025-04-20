@@ -1,7 +1,10 @@
+schemanyd.py
+
 # Preinstalled
 from typing import Dict, Any, Union
 from io import BytesIO
 from pathlib import Path
+import uuid
 
 # Pip
 import polars as pl
@@ -16,6 +19,7 @@ from schemanyd.input.insert import (
     csv_from_csv_file,
     csv_from_excel_file
 )
+from schemanyd.input.column_mapping import ColumnMapping
 
 class Schemanyd:
 
@@ -101,16 +105,18 @@ class Schemanyd:
                           f"Supported types: list[dict], polars.DataFrame, pandas.DataFrame, "
                           f"str (file path), BytesIO")
 
-    def insert(self, csv_file: BytesIO, column_mapping: Dict[str, str], try_convert: bool = False) -> None:
+    async def insert(self, csv_file: BytesIO, column_mapping: Dict[str, str], has_header: bool = True, try_convert: bool = False) -> None:
         """
         Insert data from a CSV BytesIO into the database using Schemanyd Autotrace Logic.
         
         Parameters
         ------------------------------------------------------------------------------------------------------------------------
         csv_file: BytesIO
-            In-memory binary file-like object containing CSV data. The stream should contain UTF-8 encoded CSV bytes.
+            In-memory binary file-like object containing CSV data. The stream should contain UTF-8 encoded CSV bytes. 
         column_mapping: Dict[str, str]
             A mapping of CSV column names to database table column names.
+        has_header: bool
+            Whether the CSV data has a header row. If this is False, please refer to the columns as "column_x" with x being a 1-based index.
         try_convert: bool
             Whether to attempt automatic type conversion for the CSV data.
 
@@ -139,7 +145,7 @@ class Schemanyd:
         | id | name | country_id |    | id | name         | country_id |     | id | name        |
         |----|------|------------|    |----|--------------|------------|     |----|-------------|
         | 10 | Tell | 1          |    | 20 | Züricher See | 2          |     | 1  | Germany     |
-                                                                            | 2  | Switzerland |
+                                                                             | 2  | Switzerland |
         ```
 
         `column_mapping` Syntax
@@ -148,35 +154,49 @@ class Schemanyd:
         `. = Schemanyd.seperator_rf(default)` - seperator between relation and field <br>
         `/ = Schemanyd.seperator_rr(default)` - seperator between parent relation and relation (parent needs the foreign key)
         """
-        pass
 
         # 1. | Reading CSV from bytes (no disk I/O)
 
+        if try_convert and not isinstance(csv_file, BytesIO):
+            csv_file = Schemanyd.to_BytesIO(csv_file)
+
+        if not isinstance(csv_file, BytesIO):
+            raise TypeError("Expected csv_file to be a BytesIO object.")
+
+        csv_file.seek(0)
+        df = pl.read_csv(csv_file, has_header = has_header)
+
         # 2. | 1st Check Wave
+        # 2.1. | Check if every mentioned column even exists within the csv (maybe check for similiar names / typos)
 
-            # 2.1. | Check if every mentioned column in the csv even exists (maybe check for similiar names / typos)
+        missing_columns = [col for col in column_mapping.keys() if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Missing columns in CSV: {missing_columns}")
 
-            # 2.2. | Check if every mentioned database field even exists in the schema
-            
-                # 2.2.1. | Check if the data types match (maybe also check for similiar names / typos)
+        # 2.2. | Check if every mentioned database field even exists in the schema
+        # 2.2.1. | Check if the data types match (maybe also check for similiar names / typos)
+        # 2.3. | Check if fields which are mentioned without any long syntax ('.../...') have multiple foreign keys pointing to them
+        # 2.3.1. | Check which foreign key is closer / choose it and give a warning / return in how it was joined, which one was taken, throw an error if they are equally close
+        # 2.4. | For every table, check if all fields which are notnull are given
+        # 2.4.1. | If not, check if the existing are unique enough to get the IDs of existing entries
+        # 2.4.2. | If it would be possible, check if all entries already exist, or if I would need to add new (then this can't be done, but a dataset with the found values can be returned)
+        # 2.5. | Check with a Graph Path-Tracing, if the join is possible, provide detailed feedback which exact point might cause issues
 
-            # 2.3. | Check if fields which are mentioned without any long syntax ('.../...') have multiple foreign keys pointing to them
-
-                # 2.3.1. | Check which foreign key is closer / choose it and give a warning / return in how it was joined, which one was taken, throw an error if they are equally close
-
-            # 2.4. | For every table, check if all fields which are notnull are given
-
-                # 2.4.1. | If not, check if the existing are unique enough to get the IDs of existing entries
-
-                # 2.4.2. | If it would be possible, check if all entries already exist, or if I would need to add new (then this can't be done, but a dataset with the found values can be returned)
-
-            # 2.5. | Check with a Graph Path-Tracing, if the join is possible, provide detailed feedback which exact point might cause issues
+        ColumnMapping(self, column_mapping).check()
 
         # 3. | Renaming and dropping columns based on mapping
 
-        # 4. | Creating a temporary table in the database
+        df: pl.DataFrame = df.select(column_mapping.keys()).rename(column_mapping)
 
+        # 4. | Creating a temporary table in the database
         # 5. | Bulk loading CSV data into temp table
+
+        tmp_db_name = f"tmp_{uuid.uuid4().hex}"
+        df.write_database(
+            table_name=tmp_db_name, 
+            connection=self.db.database_url.replace("+asyncpg", ""), 
+            if_table_exists="replace"
+        )
 
         # 6. | Schemanyd Logic
 

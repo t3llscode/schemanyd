@@ -1,6 +1,9 @@
+database.py
+
 from sqlalchemy import MetaData, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
+from schemanyd.utility.graph import Graph
 
 # IMPROVEMENTS
 # - Database URL Check / Error Handling
@@ -42,7 +45,7 @@ class Database:
         
         # Initialize these as None - they'll be set in async_init
         self.schema = None
-        self.graph = None
+        self.graph: Graph = None
 
         # Create async session maker
         self.create_async_session = async_sessionmaker(
@@ -70,7 +73,7 @@ class Database:
         """
         # Load the database schema
         self.schema = await self.get_schema()
-        self.graph = await self.build_graph()
+        self.graph = Graph(self.schema, schema_type="sqlalchemy")
 
     # - - - STATIC METHODS - - -
 
@@ -126,21 +129,6 @@ class Database:
             return schema
 
 
-    async def build_graph(self) -> dict:
-        """
-        async function to build a simple dependency graph
-        """
-        # Use self.schema if already loaded, otherwise get it fresh
-        schema = self.schema if self.schema is not None else await self.get_schema()  # should be covered by init
-        graph = {}
-
-        for table in schema.tables.values():
-            print(table, flush=True)
-            graph[table] = [fk.column.table.name for fk in table.foreign_keys]
-
-        return graph
-
-
     async def connection_established(self):
         """
         async function to check database connection
@@ -151,3 +139,7 @@ class Database:
                 return True
         except Exception:
             return False
+        
+    
+    async def get_connection(self):
+        return await self.engine.connect()
